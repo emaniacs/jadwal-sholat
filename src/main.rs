@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{Datelike, NaiveDate};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Error};
 use scraper::{Html, Selector};
@@ -101,9 +101,14 @@ async fn build_daerah(client: &Client, provinsi_name: &str, provinsi_token: &str
     daerahs
 }
 
-async fn fetch_jadwal(daerah: &Daerah, date: &str) -> Value {
-    // println!("Build daerah {}:", provinsi_name);
-    let params = [("x", provinsi_token.to_string())];
+async fn fetch_jadwal(client: &Client, daerah: &Daerah, date: &NaiveDate) -> Value {
+    let params = [
+        ("x", daerah.provinsi_token.to_string()),
+        ("y", daerah.kabupaten_token.to_string()),
+        ("bln", date.month().to_string()),
+        ("thn", date.year().to_string()),
+    ];
+
     let response = client
         .post(URI_KABUPATEN)
         .form(&params)
@@ -111,11 +116,12 @@ async fn fetch_jadwal(daerah: &Daerah, date: &str) -> Value {
         .await
         .expect("Failed load kabupaten");
 
-    let body = response.text().await.expect("Failed to read response body");
-    let fragment = Html::parse_fragment(body.as_str());
-    let option_selector = Selector::parse("option").expect("Failed parse selector for option");
-
-    let mut daerahs = Vec::new();
+    let json = response
+        .json::<Value>()
+        .await
+        .expect("Failed to read response body");
+    json
+}
 
 async fn fetch_daerah(client: &Client) -> Vec<Daerah> {
     let response = client
@@ -222,17 +228,18 @@ fn save_jadwal_file(daerah: &Daerah, bulan: &str, jadwals: &Value) -> Result<(),
 }
 
 // async fn load_jadwal(daerah: &Daerah, bulan: &str) -> Vec<Jadwal> {
-async fn load_jadwal(daerah: &Daerah, bulan: &str) -> Value {
+async fn load_jadwal(daerah: &Daerah, date: NaiveDate) -> Value {
+    let bulan = date.format("%Y-%m").to_string();
     let vec_jadwal = match read_jadwal_file(&daerah, &bulan) {
         Ok(result) => result,
         Err(err) => {
             println!("Error read daerah file {:?}", err);
-            std::process::exit(1);
+            // std::process::exit(1);
 
-            // let client = build_client().await.expect("Failed build client");
-            // let vec_daerah = fetch_jadwal(&client).await;
-            // let _ = save_daerah_file(&vec_daerah);
-            // vec_daerah
+            let client = build_client().await.expect("Failed build client");
+            let value = fetch_jadwal(&client, &daerah, &date).await;
+            let _ = save_jadwal_file(&daerah, &bulan, &value);
+            value
         }
     };
 
@@ -265,10 +272,9 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     };
 
-    println!("Daerah: {:#?}", daerah);
-    let bulan = date.format("%Y-%m").to_string();
+    // println!("Daerah: {:#?}", daerah);
     let hari = date.format("%Y-%m-%d").to_string();
-    let jadwals = load_jadwal(daerah, &bulan).await;
+    let jadwals = load_jadwal(daerah, date).await;
     let jadwal = match &jadwals[&hari] {
         Value::Object(object) => object,
         Value::Null => {
@@ -281,6 +287,9 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     };
 
-    println!("Jadwal Sholat {} {} : {:#?}", daerah.kabupaten, daerah.provinsi, jadwal);
+    println!(
+        "Jadwal Sholat {} {} : {:#?}",
+        daerah.kabupaten, daerah.provinsi, jadwal
+    );
     Ok(())
 }

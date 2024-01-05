@@ -1,17 +1,20 @@
+use chrono::NaiveDate;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Error};
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use serde_json;
+use serde_json::Value;
+use std::env;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Write;
-use std::env;
 
 static HOMEPAGE: &'static str = "https://bimasislam.kemenag.go.id";
 static URI_JADWALSHALAT: &'static str = "https://bimasislam.kemenag.go.id/jadwalshalat";
 static URI_KABUPATEN: &'static str = "https://bimasislam.kemenag.go.id/ajax/getKabkoshalat";
-static DAERAH_JSON_FILE: &'static str = "/tmp/bimas-daerah.json";
+
+static CONFIG_DIR: &'static str = "/tmp";
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Daerah {
@@ -98,6 +101,22 @@ async fn build_daerah(client: &Client, provinsi_name: &str, provinsi_token: &str
     daerahs
 }
 
+async fn fetch_jadwal(daerah: &Daerah, date: &str) -> Value {
+    // println!("Build daerah {}:", provinsi_name);
+    let params = [("x", provinsi_token.to_string())];
+    let response = client
+        .post(URI_KABUPATEN)
+        .form(&params)
+        .send()
+        .await
+        .expect("Failed load kabupaten");
+
+    let body = response.text().await.expect("Failed to read response body");
+    let fragment = Html::parse_fragment(body.as_str());
+    let option_selector = Selector::parse("option").expect("Failed parse selector for option");
+
+    let mut daerahs = Vec::new();
+
 async fn fetch_daerah(client: &Client) -> Vec<Daerah> {
     let response = client
         .get(URI_JADWALSHALAT)
@@ -131,7 +150,8 @@ async fn fetch_daerah(client: &Client) -> Vec<Daerah> {
 }
 
 fn read_daerah_file() -> Result<Vec<Daerah>, serde_json::Error> {
-    let file = File::open(DAERAH_JSON_FILE).expect("Cant open daerah file");
+    let filename = get_file_in_config("bimas-daerah.json");
+    let file = File::open(filename).expect("Cant open daerah file");
     let reader = BufReader::new(file);
 
     let vec_daerah: Vec<Daerah> = serde_json::from_reader(reader)?;
@@ -140,7 +160,8 @@ fn read_daerah_file() -> Result<Vec<Daerah>, serde_json::Error> {
 }
 
 fn save_daerah_file(vec_daerah: &Vec<Daerah>) -> Result<(), std::io::Error> {
-    let mut file = File::create(DAERAH_JSON_FILE)?;
+    let filename = get_file_in_config("bimas-daerah.json");
+    let mut file = File::create(filename)?;
 
     let json_string =
         serde_json::to_string_pretty(&vec_daerah).expect("Failed to serialize struct to JSON");
@@ -163,21 +184,80 @@ async fn load_daerah() -> Vec<Daerah> {
     vec_daerah
 }
 
+fn get_file_in_config(name: &str) -> String {
+    let filename = CONFIG_DIR.to_owned() + "/" + name;
+    filename
+}
+
+fn generate_jadwal_filename(daerah: &Daerah, bulan: &str) -> String {
+    let provinsi = daerah.provinsi.to_lowercase();
+    let kabupaten = daerah.kabupaten.to_lowercase();
+
+    let filename = format!("{}-{}-{}.json", &provinsi, &kabupaten, &bulan);
+
+    return get_file_in_config(&filename);
+}
+
+// fn read_jadwal_file(daerah: &Daerah, bulan: &str) -> Result<Vec<Jadwal>, serde_json::Error> {
+fn read_jadwal_file(daerah: &Daerah, bulan: &str) -> Result<Value, serde_json::Error> {
+    let filename = generate_jadwal_filename(&daerah, &bulan);
+    let message = "Cant open daerah file: ".to_owned() + &filename.as_str();
+    let file = File::open(filename).expect(&message);
+    let reader = BufReader::new(file);
+
+    // let vec_jadwal: Vec<Jadwal> = serde_json::from_reader(reader)?;
+    let vec_jadwal: Value = serde_json::from_reader(reader)?;
+
+    Ok(vec_jadwal)
+}
+
+fn save_jadwal_file(daerah: &Daerah, bulan: &str, jadwals: &Value) -> Result<(), std::io::Error> {
+    let filename = generate_jadwal_filename(&daerah, &bulan);
+    let mut file = File::create(filename)?;
+
+    let json_string =
+        serde_json::to_string_pretty(&jadwals).expect("Failed to serialize struct to JSON");
+
+    file.write_all(json_string.as_bytes())
+}
+
+// async fn load_jadwal(daerah: &Daerah, bulan: &str) -> Vec<Jadwal> {
+async fn load_jadwal(daerah: &Daerah, bulan: &str) -> Value {
+    let vec_jadwal = match read_jadwal_file(&daerah, &bulan) {
+        Ok(result) => result,
+        Err(err) => {
+            println!("Error read daerah file {:?}", err);
+            std::process::exit(1);
+
+            // let client = build_client().await.expect("Failed build client");
+            // let vec_daerah = fetch_jadwal(&client).await;
+            // let _ = save_daerah_file(&vec_daerah);
+            // vec_daerah
+        }
+    };
+
+    vec_jadwal
+}
+
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
     let args: Vec<String> = env::args().collect();
 
-     // Ensure there are exactly 2 arguments
-    if args.len() != 3 {
-        eprintln!("Usage: {} <arg1> <arg2>", args[0]);
+    // Ensure there are exactly 2 arguments
+    if args.len() != 4 {
+        eprintln!("Usage: {} <date> <provinsi> <kabupaten>", args[0]);
         std::process::exit(1);
     }
 
-    let provinsi= args[1].to_uppercase().to_owned();
-    let kabupaten= args[2].to_uppercase().to_owned();
+    let date = NaiveDate::parse_from_str(&args[1], "%Y-%m-%d").expect("failed parse date");
+    let provinsi = args[2].to_uppercase().to_owned();
+    let kabupaten = args[3].to_uppercase().to_owned();
 
     let vec_daerah = load_daerah().await;
-    let daerah = match vec_daerah.iter().find(|&item| item.provinsi == provinsi && item.kabupaten == kabupaten) {
+    let daerah = match vec_daerah
+        .iter()
+        .find(|&item| item.provinsi == provinsi && item.kabupaten == kabupaten)
+    {
         Some(result) => result,
         None => {
             eprintln!("Daerah '{} {}' not exist in file", provinsi, kabupaten);
@@ -185,6 +265,22 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     };
 
-    println!("{:#?}", daerah);
+    println!("Daerah: {:#?}", daerah);
+    let bulan = date.format("%Y-%m").to_string();
+    let hari = date.format("%Y-%m-%d").to_string();
+    let jadwals = load_jadwal(daerah, &bulan).await;
+    let jadwal = match &jadwals[&hari] {
+        Value::Object(object) => object,
+        Value::Null => {
+            eprintln!("No jadwal for {}", hari);
+            std::process::exit(1);
+        }
+        _ => {
+            eprintln!("Invalid jadwal type");
+            std::process::exit(1);
+        }
+    };
+
+    println!("Jadwal Sholat {} {} : {:#?}", daerah.kabupaten, daerah.provinsi, jadwal);
     Ok(())
 }

@@ -6,6 +6,7 @@ use serde_json;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::Write;
+use std::env;
 
 static HOMEPAGE: &'static str = "https://bimasislam.kemenag.go.id";
 static URI_JADWALSHALAT: &'static str = "https://bimasislam.kemenag.go.id/jadwalshalat";
@@ -164,7 +165,26 @@ async fn load_daerah() -> Vec<Daerah> {
 
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
+    let args: Vec<String> = env::args().collect();
+
+     // Ensure there are exactly 2 arguments
+    if args.len() != 3 {
+        eprintln!("Usage: {} <arg1> <arg2>", args[0]);
+        std::process::exit(1);
+    }
+
+    let provinsi= args[1].to_uppercase().to_owned();
+    let kabupaten= args[2].to_uppercase().to_owned();
+
     let vec_daerah = load_daerah().await;
-    println!("Daerah {:#?}", vec_daerah);
+    let daerah = match vec_daerah.iter().find(|&item| item.provinsi == provinsi && item.kabupaten == kabupaten) {
+        Some(result) => result,
+        None => {
+            eprintln!("Daerah '{} {}' not exist in file", provinsi, kabupaten);
+            std::process::exit(1);
+        }
+    };
+
+    println!("{:#?}", daerah);
     Ok(())
 }

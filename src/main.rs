@@ -13,6 +13,7 @@ use std::io::Write;
 static HOMEPAGE: &'static str = "https://bimasislam.kemenag.go.id";
 static URI_JADWALSHALAT: &'static str = "https://bimasislam.kemenag.go.id/jadwalshalat";
 static URI_KABUPATEN: &'static str = "https://bimasislam.kemenag.go.id/ajax/getKabkoshalat";
+static URI_JADWALSHALAT_X: &'static str = "https://bimasislam.kemenag.go.id/ajax/getShalatbln";
 
 static CONFIG_DIR: &'static str = "/tmp";
 
@@ -101,7 +102,7 @@ async fn build_daerah(client: &Client, provinsi_name: &str, provinsi_token: &str
     daerahs
 }
 
-async fn fetch_jadwal(client: &Client, daerah: &Daerah, date: &NaiveDate) -> Value {
+async fn fetch_jadwal(client: &Client, daerah: &Daerah, date: &NaiveDate) -> Value{
     let params = [
         ("x", daerah.provinsi_token.to_string()),
         ("y", daerah.kabupaten_token.to_string()),
@@ -110,17 +111,15 @@ async fn fetch_jadwal(client: &Client, daerah: &Daerah, date: &NaiveDate) -> Val
     ];
 
     let response = client
-        .post(URI_KABUPATEN)
+        .post(URI_JADWALSHALAT_X)
         .form(&params)
         .send()
         .await
         .expect("Failed load kabupaten");
 
-    let json = response
-        .json::<Value>()
-        .await
-        .expect("Failed to read response body");
-    json
+    let json = response.json::<Value>().await.expect("Failed read jadwal sholat");
+    let value = &json["data"];
+    value.clone()
 }
 
 async fn fetch_daerah(client: &Client) -> Vec<Daerah> {
@@ -204,11 +203,10 @@ fn generate_jadwal_filename(daerah: &Daerah, bulan: &str) -> String {
     return get_file_in_config(&filename);
 }
 
-// fn read_jadwal_file(daerah: &Daerah, bulan: &str) -> Result<Vec<Jadwal>, serde_json::Error> {
-fn read_jadwal_file(daerah: &Daerah, bulan: &str) -> Result<Value, serde_json::Error> {
+fn read_jadwal_file(daerah: &Daerah, bulan: &str) -> Result<Value, std::io::Error> {
     let filename = generate_jadwal_filename(&daerah, &bulan);
-    let message = "Cant open daerah file: ".to_owned() + &filename.as_str();
-    let file = File::open(filename).expect(&message);
+    // let message = "Cant open daerah file: ".to_owned() + &filename.as_str();
+    let file = File::open(filename)?;
     let reader = BufReader::new(file);
 
     // let vec_jadwal: Vec<Jadwal> = serde_json::from_reader(reader)?;
@@ -239,6 +237,7 @@ async fn load_jadwal(daerah: &Daerah, date: NaiveDate) -> Value {
             let client = build_client().await.expect("Failed build client");
             let value = fetch_jadwal(&client, &daerah, &date).await;
             let _ = save_jadwal_file(&daerah, &bulan, &value);
+            // std::process::exit(1);
             value
         }
     };

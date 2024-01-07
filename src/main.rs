@@ -6,16 +6,17 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use serde_json::Value;
 use std::env;
-use std::fs::File;
+use std::fs::{DirBuilder, File};
 use std::io::BufReader;
 use std::io::Write;
+use dirs;
+use std::path::PathBuf;
+
 
 static HOMEPAGE: &'static str = "https://bimasislam.kemenag.go.id";
 static URI_JADWALSHALAT: &'static str = "https://bimasislam.kemenag.go.id/jadwalshalat";
 static URI_KABUPATEN: &'static str = "https://bimasislam.kemenag.go.id/ajax/getKabkoshalat";
 static URI_JADWALSHALAT_X: &'static str = "https://bimasislam.kemenag.go.id/ajax/getShalatbln";
-
-static CONFIG_DIR: &'static str = "/tmp";
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Daerah {
@@ -49,7 +50,7 @@ async fn build_client() -> Result<Client, Error> {
         .default_headers(headers_map)
         .build()
         .unwrap();
-    println!("Build client");
+    // println!("Build client");
 
     let response = client
         .get(HOMEPAGE)
@@ -102,7 +103,7 @@ async fn build_daerah(client: &Client, provinsi_name: &str, provinsi_token: &str
     daerahs
 }
 
-async fn fetch_jadwal(client: &Client, daerah: &Daerah, date: &NaiveDate) -> Value{
+async fn fetch_jadwal(client: &Client, daerah: &Daerah, date: &NaiveDate) -> Value {
     let params = [
         ("x", daerah.provinsi_token.to_string()),
         ("y", daerah.kabupaten_token.to_string()),
@@ -117,7 +118,10 @@ async fn fetch_jadwal(client: &Client, daerah: &Daerah, date: &NaiveDate) -> Val
         .await
         .expect("Failed load kabupaten");
 
-    let json = response.json::<Value>().await.expect("Failed read jadwal sholat");
+    let json = response
+        .json::<Value>()
+        .await
+        .expect("Failed read jadwal sholat");
     let value = &json["data"];
     value.clone()
 }
@@ -149,14 +153,15 @@ async fn fetch_daerah(client: &Client) -> Vec<Daerah> {
         let daerah = build_daerah(client, &provinsi_name, &provinsi_token).await;
         vec_daerah.extend(daerah);
     }
-    println!("Vec {} {:?}", vec_daerah.len(), vec_daerah);
+    // println!("Vec {} {:?}", vec_daerah.len(), vec_daerah);
 
     vec_daerah
 }
 
-fn read_daerah_file() -> Result<Vec<Daerah>, serde_json::Error> {
-    let filename = get_file_in_config("bimas-daerah.json");
-    let file = File::open(filename).expect("Cant open daerah file");
+fn read_daerah_file() -> Result<Vec<Daerah>, std::io::Error> {
+    let filename = get_cache_name("bimas-daerah.json");
+    // println!("Filename daerah: {}", filename);
+    let file = File::open(filename)?;
     let reader = BufReader::new(file);
 
     let vec_daerah: Vec<Daerah> = serde_json::from_reader(reader)?;
@@ -165,11 +170,10 @@ fn read_daerah_file() -> Result<Vec<Daerah>, serde_json::Error> {
 }
 
 fn save_daerah_file(vec_daerah: &Vec<Daerah>) -> Result<(), std::io::Error> {
-    let filename = get_file_in_config("bimas-daerah.json");
+    let filename = get_cache_name("bimas-daerah.json");
     let mut file = File::create(filename)?;
 
-    let json_string =
-        serde_json::to_string_pretty(&vec_daerah).expect("Failed to serialize struct to JSON");
+    let json_string = serde_json::to_string_pretty(&vec_daerah).expect("Failed to serialize struct to JSON");
 
     file.write_all(json_string.as_bytes())
 }
@@ -178,7 +182,8 @@ async fn load_daerah() -> Vec<Daerah> {
     let vec_daerah = match read_daerah_file() {
         Ok(result) => result,
         Err(err) => {
-            println!("Error read daerah file {:?}", err);
+            eprintln!("Error read daerah file {:?}\nDownloading now...", err.kind());
+
             let client = build_client().await.expect("Failed build client");
             let vec_daerah = fetch_daerah(&client).await;
             let _ = save_daerah_file(&vec_daerah);
@@ -189,9 +194,21 @@ async fn load_daerah() -> Vec<Daerah> {
     vec_daerah
 }
 
-fn get_file_in_config(name: &str) -> String {
-    let filename = CONFIG_DIR.to_owned() + "/" + name;
-    filename
+fn create_cache_dir(path: &PathBuf) -> Result<(), std::io::Error> {
+    DirBuilder::new().recursive(true).create(&path)?;
+    Ok(())
+}
+
+
+fn get_cache_name(name: &str) -> String {
+    let mut path = dirs::home_dir().unwrap();
+    path.push(".cache/jadwal-shalat/");
+    let _ = create_cache_dir(&path);
+    // println!("Create directory: {:?}", path);
+    // let _ = DirBuilder::new().recursive(true).create(&path);
+
+    let cache_dir = path.into_os_string().into_string().unwrap();
+    cache_dir + name
 }
 
 fn generate_jadwal_filename(daerah: &Daerah, bulan: &str) -> String {
@@ -200,16 +217,15 @@ fn generate_jadwal_filename(daerah: &Daerah, bulan: &str) -> String {
 
     let filename = format!("{}-{}-{}.json", &provinsi, &kabupaten, &bulan);
 
-    return get_file_in_config(&filename);
+    return get_cache_name(&filename);
 }
 
 fn read_jadwal_file(daerah: &Daerah, bulan: &str) -> Result<Value, std::io::Error> {
     let filename = generate_jadwal_filename(&daerah, &bulan);
-    // let message = "Cant open daerah file: ".to_owned() + &filename.as_str();
     let file = File::open(filename)?;
-    let reader = BufReader::new(file);
+    // eprintln!("file {:?}", file);
 
-    // let vec_jadwal: Vec<Jadwal> = serde_json::from_reader(reader)?;
+    let reader = BufReader::new(file);
     let vec_jadwal: Value = serde_json::from_reader(reader)?;
 
     Ok(vec_jadwal)
@@ -231,13 +247,11 @@ async fn load_jadwal(daerah: &Daerah, date: NaiveDate) -> Value {
     let vec_jadwal = match read_jadwal_file(&daerah, &bulan) {
         Ok(result) => result,
         Err(err) => {
-            println!("Error read daerah file {:?}", err);
-            // std::process::exit(1);
+            eprintln!("Error read jadwal file {:?}", err.kind());
 
             let client = build_client().await.expect("Failed build client");
             let value = fetch_jadwal(&client, &daerah, &date).await;
             let _ = save_jadwal_file(&daerah, &bulan, &value);
-            // std::process::exit(1);
             value
         }
     };

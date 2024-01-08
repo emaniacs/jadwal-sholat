@@ -46,14 +46,14 @@ async fn main() -> Result<(), reqwest::Error> {
 
     match prev {
         Some(jadwal) => {
-            print!("{} {} {} minutes ago, ", jadwal.name, jadwal.date, -jadwal.distance_from_now.unwrap_or(0));
+            print!("{} {} ({} minutes ago), ", jadwal.name, jadwal.date, -jadwal.distance_from_now.unwrap_or(0));
         },
         None => {}
     };
 
     match next {
         Some(jadwal) => {
-            println!("{} {} in {} minutes", jadwal.name, jadwal.date, jadwal.distance_from_now.unwrap_or(0));
+            println!("{} {} (in {} minutes)", jadwal.name, jadwal.date, jadwal.distance_from_now.unwrap_or(0));
         },
         None => {}
     };

@@ -1,5 +1,5 @@
 use crate::{client, config, daerah};
-use chrono::{Datelike, NaiveDate};
+use chrono::{Datelike, Local, NaiveDate, NaiveDateTime};
 use reqwest::Client;
 use serde_json;
 use serde_json::Value;
@@ -8,6 +8,19 @@ use std::io::BufReader;
 use std::io::Write;
 
 static URI_JADWALSHALAT_X: &'static str = "https://bimasislam.kemenag.go.id/ajax/getShalatbln";
+
+#[derive(Debug)]
+pub struct JadwalSholat {
+    name: String,
+    date: String,
+    distance_from_now: Option<i64>,
+}
+
+#[derive(Debug)]
+pub struct Jadwal {
+    pub tanggal: String,
+    pub items: Vec<JadwalSholat>,
+}
 
 async fn fetch_jadwal(client: &Client, daerah: &daerah::Daerah, date: &NaiveDate) -> Value {
     let params = [
@@ -66,8 +79,21 @@ fn save_jadwal_file(
     file.write_all(json_string.as_bytes())
 }
 
+// fn extract_jadwal(object: Value) -> Jadwal {
+//     let items = vec![];
+//     for (key, val)  in object {
+//         if key == "tanggal" {
+//             items.append((key, val));
+//         }
+//     }
+//     Jadwal {
+//         tanggal: object["tanggal"],
+//         items: items
+//     }
+// }
+
 // async fn load_jadwal(daerah: &Daerah, bulan: &str) -> Vec<Jadwal> {
-pub async fn load_jadwal(daerah: &daerah::Daerah, date: NaiveDate) -> Value {
+pub async fn load_jadwal(daerah: &daerah::Daerah, date: NaiveDate) -> Jadwal {
     let bulan = date.format("%Y-%m").to_string();
     let vec_jadwal = match read_jadwal_file(&daerah, &bulan) {
         Ok(result) => result,
@@ -81,5 +107,84 @@ pub async fn load_jadwal(daerah: &daerah::Daerah, date: NaiveDate) -> Value {
         }
     };
 
-    vec_jadwal
+    let hari = date.format("%Y-%m-%d").to_string();
+
+    let jadwal_obj = match &vec_jadwal[&hari] {
+        Value::Object(object) => object,
+        Value::Null => {
+            eprintln!("No jadwal for {}", hari);
+            std::process::exit(1);
+        }
+        _ => {
+            eprintln!("Invalid jadwal type");
+            std::process::exit(1);
+        }
+    };
+
+    let mut items = vec![];
+
+    for (key, value) in jadwal_obj.into_iter() {
+        if key == "tanggal" {
+            continue;
+        }
+        let val = match value {
+            Value::String(v) => v,
+            _ => "",
+        };
+
+        items.push(JadwalSholat {
+            name: key.to_string(),
+            date: String::from(val),
+            distance_from_now: None,
+        });
+    }
+
+    Jadwal {
+        tanggal: jadwal_obj["tanggal"].to_string(),
+        items,
+    }
+}
+
+pub fn get_nearest(
+    items: Vec<JadwalSholat>,
+    date: NaiveDate,
+) -> Result<(Option<JadwalSholat>, Option<JadwalSholat>), std::io::Error> {
+    let now = Local::now();
+
+    let hari = date.format("%Y-%m-%d").to_string();
+    let date_format = "%Y-%m-%d %H:%M";
+    let mut prevs: Vec<(i64, String, String)> = vec![];
+    let mut nexts: Vec<(i64, String, String)> = vec![];
+    for item in items {
+        let date_str = format!("{} {}", hari, item.date);
+        let dt = NaiveDateTime::parse_from_str(&date_str, &date_format);
+        let diff = (dt.expect("Can parse time").time() - now.time()).num_minutes();
+
+        if diff >= 0 {
+            nexts.push((diff, item.name, item.date));
+        } else {
+            prevs.push((diff, item.name, item.date));
+        }
+    }
+    nexts.sort();
+    prevs.sort();
+
+    let next = match nexts.first() {
+        Some(val) => Some(JadwalSholat {
+            name: val.1.clone(),
+            date: val.2.clone(),
+            distance_from_now: Some(val.0),
+        }),
+        None => None,
+    };
+    let prev = match prevs.last() {
+        Some(val) => Some(JadwalSholat {
+            name: val.1.clone(),
+            date: val.2.clone(),
+            distance_from_now: Some(val.0),
+        }),
+        None => None,
+    };
+
+    Ok((prev, next))
 }

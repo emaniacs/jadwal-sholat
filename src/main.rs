@@ -3,8 +3,7 @@ mod config;
 mod daerah;
 mod jadwal;
 
-use chrono::NaiveDate;
-use serde_json::Value;
+use chrono::{Local, NaiveDate};
 use std::env;
 
 #[tokio::main]
@@ -33,24 +32,20 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     };
 
-    // println!("Daerah: {:#?}", daerah);
-    let hari = date.format("%Y-%m-%d").to_string();
-    let jadwals = jadwal::load_jadwal(daerah, date).await;
-    let jadwal = match &jadwals[&hari] {
-        Value::Object(object) => object,
-        Value::Null => {
-            eprintln!("No jadwal for {}", hari);
-            std::process::exit(1);
-        }
-        _ => {
-            eprintln!("Invalid jadwal type");
+    let jadwal = jadwal::load_jadwal(daerah, date).await;
+
+    let nearest = jadwal::get_nearest(jadwal.items, date);
+
+    let (next, prev) = match nearest {
+        Ok((b, a)) => (a, b),
+        Err(err) => {
+            eprintln!("Cannot get nearest {:?}", err);
             std::process::exit(1);
         }
     };
 
-    println!(
-        "Jadwal Sholat {} {} : {:#?}",
-        daerah.kabupaten, daerah.provinsi, jadwal
-    );
+    println!("Prev: {:?}", prev);
+    println!("Next: {:?}", next);
+
     Ok(())
 }

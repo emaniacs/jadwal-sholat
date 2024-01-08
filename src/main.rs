@@ -9,7 +9,7 @@ use chrono::{Local, NaiveDate};
 use clap::Parser;
 
 #[derive(Parser, Debug, Default)]
-#[clap(author, version, about)]
+#[command(author, version, about)]
 struct Args {
     date: Option<String>,
 

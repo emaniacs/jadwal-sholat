@@ -11,9 +11,9 @@ static URI_JADWALSHALAT_X: &'static str = "https://bimasislam.kemenag.go.id/ajax
 
 #[derive(Debug)]
 pub struct JadwalSholat {
-    name: String,
-    date: String,
-    distance_from_now: Option<i64>,
+    pub name: String,
+    pub date: String,
+    pub distance_from_now: Option<i64>,
 }
 
 #[derive(Debug)]

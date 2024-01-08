@@ -3,7 +3,7 @@ mod config;
 mod daerah;
 mod jadwal;
 
-use chrono::{Local, NaiveDate};
+use chrono::NaiveDate;
 use std::env;
 
 #[tokio::main]
@@ -44,8 +44,19 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     };
 
-    println!("Prev: {:?}", prev);
-    println!("Next: {:?}", next);
+    match prev {
+        Some(jadwal) => {
+            print!("{} {} {} minutes ago, ", jadwal.name, jadwal.date, -jadwal.distance_from_now.unwrap_or(0));
+        },
+        None => {}
+    };
+
+    match next {
+        Some(jadwal) => {
+            println!("{} {} in {} minutes", jadwal.name, jadwal.date, jadwal.distance_from_now.unwrap_or(0));
+        },
+        None => {}
+    };
 
     Ok(())
 }

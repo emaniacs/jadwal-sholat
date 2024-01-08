@@ -10,9 +10,9 @@ use clap::Parser;
 
 #[derive(Parser, Debug, Default)]
 #[clap(
-    author = "Author Name",
+    author = "Novi Ardi",
     version,
-    about = "A Very simple Package Hunter"
+    about = "Jadwal shalat - using bimasislam.kemenag.go.id/jadwalshalat as source"
 )]
 struct Args {
     date: Option<String>,

@@ -1,8 +1,8 @@
 [package]
 name = "jadwal-sholat"
 version = "0.1.1"
-author = "Novi Ardi"
-about = "Jadwal shalat - using bimasislam.kemenag.go.id/jadwalshalat as source"
+authors = ["Novi Ardi <noone.nu1@gmail.com>"]
+description = "Jadwal shalat - using bimasislam.kemenag.go.id/jadwalshalat as source"
 edition = "2021"
 
 [profile.release]
@@ -16,7 +16,6 @@ strip = true        # Strip symbols from binary*
 
 [dependencies]
 reqwest = { version = "0.11", features = ["cookies", "json"] }
-# reqwest = "0.11"
 tokio = { version = "1", features = ["full"] }
 scraper = "0.18"
 serde = { version = "1.0", features = ["derive"] }

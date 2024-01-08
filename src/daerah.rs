@@ -1,4 +1,4 @@
-use crate::{config, client};
+use crate::{client, config};
 use reqwest::Client;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
@@ -117,4 +117,13 @@ async fn build_daerah(client: &Client, provinsi_name: &str, provinsi_token: &str
     }
 
     daerahs
+}
+
+pub fn list_daerah(vec_daerah: Vec<Daerah>) {
+    for daerah in vec_daerah {
+        println!(
+            "Kabupaten: {}, Provinsi: {}",
+            daerah.kabupaten, daerah.provinsi
+        );
+    }
 }

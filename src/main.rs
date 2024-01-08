@@ -24,10 +24,7 @@ struct Args {
     kabupaten: Option<String>,
 
     #[arg(long)]
-    list_kabupaten: bool,
-
-    #[arg(long)]
-    list_provinsi: bool,
+    list_daerah: bool,
 }
 
 #[tokio::main]
@@ -54,6 +51,11 @@ async fn main() -> Result<(), reqwest::Error> {
     };
 
     let vec_daerah = daerah::load_daerah().await;
+    if args.list_daerah {
+        daerah::list_daerah(vec_daerah);
+        return Ok(());
+    }
+
     let daerah = match vec_daerah
         .iter()
         .find(|&item| item.provinsi == provinsi && item.kabupaten == kabupaten)

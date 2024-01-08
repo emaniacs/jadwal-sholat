@@ -9,11 +9,7 @@ use chrono::{Local, NaiveDate};
 use clap::Parser;
 
 #[derive(Parser, Debug, Default)]
-#[clap(
-    author = "Novi Ardi",
-    version,
-    about = "Jadwal shalat - using bimasislam.kemenag.go.id/jadwalshalat as source"
-)]
+#[clap(author, version, about)]
 struct Args {
     date: Option<String>,
 

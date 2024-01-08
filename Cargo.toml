@@ -1,6 +1,8 @@
 [package]
 name = "jadwal-sholat"
-version = "0.1.0"
+version = "0.1.1"
+author = "Novi Ardi"
+about = "Jadwal shalat - using bimasislam.kemenag.go.id/jadwalshalat as source"
 edition = "2021"
 
 [profile.release]

@@ -9,7 +9,11 @@ use chrono::{Local, NaiveDate};
 use clap::Parser;
 
 #[derive(Parser, Debug, Default)]
-#[clap(author="Author Name", version, about="A Very simple Package Hunter")]
+#[clap(
+    author = "Author Name",
+    version,
+    about = "A Very simple Package Hunter"
+)]
 struct Args {
     date: Option<String>,
 
@@ -18,26 +22,35 @@ struct Args {
 
     #[arg(short, long)]
     kabupaten: Option<String>,
+
+    #[arg(long)]
+    list_kabupaten: bool,
+
+    #[arg(long)]
+    list_provinsi: bool,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
     let args = Args::parse();
 
-    let date: NaiveDate = match args.date {
+    let date = match args.date {
         Some(val) => NaiveDate::parse_from_str(&val, "%Y-%m-%d").expect("failed parse date"),
         None => Local::now().date_naive(),
     };
 
     let provinsi: String = match args.provinsi {
         Some(val) => val.to_uppercase(),
-        // None => "DKI JAKARTA".to_string(),
-        None => env::var("JADWAL_PROVINSI").expect("provinsi not provided in option or env, please set JADWAL_PROVINSI").to_uppercase()
+        None => env::var("JADWAL_PROVINSI")
+            .expect("provinsi not provided in option or env, please set JADWAL_PROVINSI")
+            .to_uppercase(),
     };
 
     let kabupaten: String = match args.kabupaten {
         Some(val) => val.to_uppercase(),
-        None => env::var("JADWAL_KABUPATEN").expect("provinsi not provided in option or env, please set JADWAL_KABUPATEN").to_uppercase()
+        None => env::var("JADWAL_KABUPATEN")
+            .expect("provinsi not provided in option or env, please set JADWAL_KABUPATEN")
+            .to_uppercase(),
     };
 
     let vec_daerah = daerah::load_daerah().await;
@@ -66,15 +79,25 @@ async fn main() -> Result<(), reqwest::Error> {
 
     match prev {
         Some(jadwal) => {
-            print!("{} {} ({} minutes ago), ", jadwal.name, jadwal.date, -jadwal.distance_from_now.unwrap_or(0));
-        },
+            print!(
+                "{} {} ({} minutes ago), ",
+                jadwal.name,
+                jadwal.date,
+                -jadwal.distance_from_now.unwrap_or(0)
+            );
+        }
         None => {}
     };
 
     match next {
         Some(jadwal) => {
-            println!("{} {} (in {} minutes)", jadwal.name, jadwal.date, jadwal.distance_from_now.unwrap_or(0));
-        },
+            println!(
+                "{} {} (in {} minutes)",
+                jadwal.name,
+                jadwal.date,
+                jadwal.distance_from_now.unwrap_or(0)
+            );
+        }
         None => {}
     };
 

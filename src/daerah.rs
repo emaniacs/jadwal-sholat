@@ -120,10 +120,10 @@ async fn build_daerah(client: &Client, provinsi_name: &str, provinsi_token: &str
 }
 
 pub fn list_daerah(vec_daerah: Vec<Daerah>) {
-    for daerah in vec_daerah {
+    vec_daerah.iter().for_each(|daerah| {
         println!(
             "Kabupaten: {}, Provinsi: {}",
             daerah.kabupaten, daerah.provinsi
-        );
-    }
+        )
+    });
 }

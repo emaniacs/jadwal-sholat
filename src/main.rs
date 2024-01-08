@@ -25,6 +25,9 @@ struct Args {
 
     #[arg(long)]
     list_daerah: bool,
+
+    #[arg(long)]
+    all_day: bool,
 }
 
 #[tokio::main]
@@ -68,6 +71,17 @@ async fn main() -> Result<(), reqwest::Error> {
     };
 
     let jadwal = jadwal::load_jadwal(daerah, date).await;
+    if args.all_day {
+        println!(
+            "Jadwal Sholat {} {} at {}",
+            daerah.kabupaten, daerah.provinsi, date
+        );
+        jadwal
+            .items
+            .iter()
+            .for_each(|item| println!("{} {}", item.name, item.date));
+        return Ok(());
+    }
 
     let nearest = jadwal::get_nearest(jadwal.items, date);
 

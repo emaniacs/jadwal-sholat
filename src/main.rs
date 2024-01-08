@@ -3,8 +3,9 @@ mod config;
 mod daerah;
 mod jadwal;
 
-use chrono::{Local, NaiveDate};
 use std::env;
+
+use chrono::{Local, NaiveDate};
 use clap::Parser;
 
 #[derive(Parser, Debug, Default)]
@@ -12,11 +13,9 @@ use clap::Parser;
 struct Args {
     date: Option<String>,
 
-    /// Name of the person to greet
     #[arg(short, long)]
     provinsi: Option<String>,
 
-    /// Name of the person to greet
     #[arg(short, long)]
     kabupaten: Option<String>,
 }
@@ -32,12 +31,13 @@ async fn main() -> Result<(), reqwest::Error> {
 
     let provinsi: String = match args.provinsi {
         Some(val) => val.to_uppercase(),
-        None => "DKI JAKARTA".to_string(),
+        // None => "DKI JAKARTA".to_string(),
+        None => env::var("JADWAL_PROVINSI").expect("provinsi not provided in option or env, please set JADWAL_PROVINSI").to_uppercase()
     };
 
     let kabupaten: String = match args.kabupaten {
         Some(val) => val.to_uppercase(),
-        None => "KOTA JAKARTA".to_string(),
+        None => env::var("JADWAL_KABUPATEN").expect("provinsi not provided in option or env, please set JADWAL_KABUPATEN").to_uppercase()
     };
 
     let vec_daerah = daerah::load_daerah().await;

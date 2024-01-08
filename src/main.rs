@@ -3,22 +3,42 @@ mod config;
 mod daerah;
 mod jadwal;
 
-use chrono::NaiveDate;
+use chrono::{Local, NaiveDate};
 use std::env;
+use clap::Parser;
+
+#[derive(Parser, Debug, Default)]
+#[clap(author="Author Name", version, about="A Very simple Package Hunter")]
+struct Args {
+    date: Option<String>,
+
+    /// Name of the person to greet
+    #[arg(short, long)]
+    provinsi: Option<String>,
+
+    /// Name of the person to greet
+    #[arg(short, long)]
+    kabupaten: Option<String>,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
-    let args: Vec<String> = env::args().collect();
+    let args = Args::parse();
 
-    // Ensure there are exactly 2 arguments
-    if args.len() != 4 {
-        eprintln!("Usage: {} <date> <provinsi> <kabupaten>", args[0]);
-        std::process::exit(1);
-    }
+    let date: NaiveDate = match args.date {
+        Some(val) => NaiveDate::parse_from_str(&val, "%Y-%m-%d").expect("failed parse date"),
+        None => Local::now().date_naive(),
+    };
 
-    let date = NaiveDate::parse_from_str(&args[1], "%Y-%m-%d").expect("failed parse date");
-    let provinsi = args[2].to_uppercase().to_owned();
-    let kabupaten = args[3].to_uppercase().to_owned();
+    let provinsi: String = match args.provinsi {
+        Some(val) => val.to_uppercase(),
+        None => "DKI JAKARTA".to_string(),
+    };
+
+    let kabupaten: String = match args.kabupaten {
+        Some(val) => val.to_uppercase(),
+        None => "KOTA JAKARTA".to_string(),
+    };
 
     let vec_daerah = daerah::load_daerah().await;
     let daerah = match vec_daerah

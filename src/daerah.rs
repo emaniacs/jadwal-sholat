@@ -3,8 +3,7 @@ use reqwest::Client;
 use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::BufReader;
-use std::io::Write;
+use std::io::{BufReader, Error, Write};
 
 static URI_KABUPATEN: &'static str = "https://bimasislam.kemenag.go.id/ajax/getKabkoshalat";
 static URI_JADWALSHALAT: &'static str = "https://bimasislam.kemenag.go.id/jadwalshalat";
@@ -70,9 +69,9 @@ fn save_daerah_file(vec_daerah: &Vec<Daerah>) -> Result<(), std::io::Error> {
     file.write_all(json_string.as_bytes())
 }
 
-pub async fn load_daerah() -> Vec<Daerah> {
-    let vec_daerah = match read_daerah_file() {
-        Ok(result) => result,
+pub async fn load_daerah() -> Result<Vec<Daerah>, Error> {
+    match read_daerah_file() {
+        Ok(result) => Ok(result),
         Err(err) => {
             eprintln!(
                 "Error read daerah file {:?}\n Downloading now...",
@@ -82,11 +81,9 @@ pub async fn load_daerah() -> Vec<Daerah> {
             let http_client = client::build_client().await.expect("Failed build client");
             let vec_daerah = fetch_daerah(&http_client).await;
             let _ = save_daerah_file(&vec_daerah);
-            vec_daerah
+            Ok(vec_daerah)
         }
-    };
-
-    vec_daerah
+    }
 }
 
 async fn build_daerah(client: &Client, provinsi_name: &str, provinsi_token: &str) -> Vec<Daerah> {

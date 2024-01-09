@@ -55,6 +55,11 @@ fn get_kabupaten(matches: &ArgMatches) -> Result<String, env::VarError> {
     }
 }
 
+fn quit(message: String, code: i32) {
+    eprintln!("{}", message);
+    std::process::exit(code);
+}
+
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
     let app = create_command();
@@ -81,7 +86,14 @@ async fn main() -> Result<(), reqwest::Error> {
         }
     };
 
-    let vec_daerah = daerah::load_daerah().await;
+    let vec_daerah = match daerah::load_daerah().await {
+        Ok(val) => val,
+        Err(err) => {
+            eprintln!("Error while load daerah {:?}", err);
+            std::process::exit(255);
+        }
+    };
+
     let list_daerah = matches.get_one::<bool>("list-daerah").unwrap_or(&false);
     if *list_daerah {
         daerah::list_daerah(vec_daerah);
@@ -95,7 +107,7 @@ async fn main() -> Result<(), reqwest::Error> {
         Some(result) => result,
         None => {
             eprintln!("Daerah '{} {}' not exist in file", provinsi, kabupaten);
-            std::process::exit(1);
+            std::process::exit(255);
         }
     };
 

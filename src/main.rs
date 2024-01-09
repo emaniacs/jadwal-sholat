@@ -8,6 +8,27 @@ use std::env;
 use chrono::{Local, NaiveDate};
 use clap::{Arg, ArgAction, ArgMatches, Command};
 
+macro_rules! get_result_or_quit {
+    ($result:expr, $err_msg:expr, $exit_code:expr) => {
+        match $result {
+            Ok(value) => value,
+            Err(_) => {
+                eprintln!("{}", $err_msg);
+                std::process::exit($exit_code);
+            }
+        }
+    };
+    ($result:expr) => {
+        match $result {
+            Ok(value) => value,
+            Err(err) => {
+                eprintln!("Error: {}", err);
+                std::process::exit(1);
+            }
+        }
+    };
+}
+
 fn create_command() -> Command {
     Command::new("jadwal-shalat")
         .arg(Arg::new("date").help("Date of jadwal shalat, default today, format YEAR-MONTH-DAY"))
@@ -55,11 +76,6 @@ fn get_kabupaten(matches: &ArgMatches) -> Result<String, env::VarError> {
     }
 }
 
-fn quit(message: String, code: i32) {
-    eprintln!("{}", message);
-    std::process::exit(code);
-}
-
 #[tokio::main]
 async fn main() -> Result<(), reqwest::Error> {
     let app = create_command();
@@ -70,29 +86,20 @@ async fn main() -> Result<(), reqwest::Error> {
         None => Local::now().date_naive(),
     };
 
-    let provinsi: String = match get_provinsi(&matches) {
-        Ok(val) => val.to_uppercase(),
-        Err(_) => {
-            eprintln!("provinsi not provided either in argument or as env JADWAL_PROVINSI");
-            std::process::exit(255);
-        }
-    };
+    let provinsi = get_result_or_quit!(
+        get_provinsi(&matches),
+        "provinsi not provided either in argument or as env JADWAL_PROVINSI",
+        255
+    ).to_uppercase();
 
-    let kabupaten: String = match get_kabupaten(&matches) {
-        Ok(val) => val.to_uppercase(),
-        Err(_) => {
-            eprintln!("kabupaten not provided either in argument or as env JADWAL_KABUPATEN");
-            std::process::exit(255);
-        }
-    };
+    let kabupaten = get_result_or_quit!(
+        get_kabupaten(&matches),
+        "kabupaten not provided either in argument or as env(JADWAL_KABUPATEN)",
+        255
+    ).to_uppercase();
 
-    let vec_daerah = match daerah::load_daerah().await {
-        Ok(val) => val,
-        Err(err) => {
-            eprintln!("Error while load daerah {:?}", err);
-            std::process::exit(255);
-        }
-    };
+    let vec_daerah =
+        get_result_or_quit!(daerah::load_daerah().await, "Error while load daerah", 255);
 
     let list_daerah = matches.get_one::<bool>("list-daerah").unwrap_or(&false);
     if *list_daerah {
@@ -127,13 +134,7 @@ async fn main() -> Result<(), reqwest::Error> {
 
     let nearest = jadwal::get_nearest(jadwal.items, date);
 
-    let (next, prev) = match nearest {
-        Ok((b, a)) => (a, b),
-        Err(err) => {
-            eprintln!("Cannot get nearest {:?}", err);
-            std::process::exit(1);
-        }
-    };
+    let (next, prev) = get_result_or_quit!(nearest, "Cannot get nearest", 255);
 
     match prev {
         Some(jadwal) => {

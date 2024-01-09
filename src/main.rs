@@ -132,32 +132,25 @@ async fn main() -> Result<(), reqwest::Error> {
         return Ok(());
     }
 
-    let nearest = jadwal::get_nearest(jadwal.items, date);
+    // let sort_jadwal = jadwal::sort_jadwal(&jadwal.items, date);
+    // println!("jadwal: {:#?}", sort_jadwal);
+    let (prevs, nexts) = jadwal::get_prev_next(jadwal.items, date);
 
-    let (next, prev) = get_result_or_quit!(nearest, "Cannot get nearest", 255);
-
-    match prev {
-        Some(jadwal) => {
+    match prevs.last() {
+        Some(val) =>
             print!(
                 "{} {} ({} minutes ago), ",
-                jadwal.name,
-                jadwal.date,
-                -jadwal.distance_from_now.unwrap_or(0)
-            );
-        }
-        None => {}
+                val.1, val.2, -val.0
+            ),
+        None => {},
     };
-
-    match next {
-        Some(jadwal) => {
+    match nexts.first() {
+        Some(val) =>
             println!(
                 "{} {} (in {} minutes)",
-                jadwal.name,
-                jadwal.date,
-                jadwal.distance_from_now.unwrap_or(0)
-            );
-        }
-        None => {}
+                val.1, val.2, val.0
+            ),
+        None => {},
     };
 
     Ok(())

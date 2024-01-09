@@ -145,10 +145,10 @@ pub async fn load_jadwal(daerah: &daerah::Daerah, date: NaiveDate) -> Jadwal {
     }
 }
 
-pub fn get_nearest(
+pub fn get_prev_next(
     items: Vec<JadwalSholat>,
     date: NaiveDate,
-) -> Result<(Option<JadwalSholat>, Option<JadwalSholat>), std::io::Error> {
+) -> (Vec<(i64, String, String)>, Vec<(i64, String, String)>) {
     let now = Local::now();
 
     let hari = date.format("%Y-%m-%d").to_string();
@@ -169,22 +169,34 @@ pub fn get_nearest(
     nexts.sort();
     prevs.sort();
 
-    let next = match nexts.first() {
-        Some(val) => Some(JadwalSholat {
-            name: val.1.clone(),
-            date: val.2.clone(),
-            distance_from_now: Some(val.0),
-        }),
-        None => None,
-    };
-    let prev = match prevs.last() {
-        Some(val) => Some(JadwalSholat {
-            name: val.1.clone(),
-            date: val.2.clone(),
-            distance_from_now: Some(val.0),
-        }),
-        None => None,
-    };
+    (prevs, nexts)
+}
 
-    Ok((prev, next))
+#[derive(Debug)]
+pub struct SortJadwalResult(Vec<(i64, String, String)>, Vec<(i64, String, String)>);
+
+pub fn sort_jadwal(
+    items: &Vec<JadwalSholat>,
+    date: NaiveDate,
+) -> SortJadwalResult {
+    let now = Local::now();
+
+    let hari = date.format("%Y-%m-%d").to_string();
+    let date_format = "%Y-%m-%d %H:%M";
+    let mut prevs: Vec<(i64, String, String)> = vec![];
+    let mut nexts: Vec<(i64, String, String)> = vec![];
+    for item in items {
+        let date_str = format!("{} {}", hari, item.date);
+        let dt = NaiveDateTime::parse_from_str(&date_str, &date_format);
+        let diff = (dt.expect("Can parse time").time() - now.time()).num_minutes();
+
+        if diff >= 0 {
+            nexts.push((diff, item.name.clone(), item.date.clone()));
+        } else {
+            prevs.push((diff, item.name.clone(), item.date.clone()));
+        }
+    }
+    nexts.sort();
+    prevs.sort();
+    SortJadwalResult(prevs, nexts)
 }

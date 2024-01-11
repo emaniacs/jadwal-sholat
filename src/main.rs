@@ -90,13 +90,15 @@ async fn main() -> Result<(), reqwest::Error> {
         get_provinsi(&matches),
         "provinsi not provided either in argument or as env JADWAL_PROVINSI",
         255
-    ).to_uppercase();
+    )
+    .to_uppercase();
 
     let kabupaten = get_result_or_quit!(
         get_kabupaten(&matches),
         "kabupaten not provided either in argument or as env(JADWAL_KABUPATEN)",
         255
-    ).to_uppercase();
+    )
+    .to_uppercase();
 
     let vec_daerah =
         get_result_or_quit!(daerah::load_daerah().await, "Error while load daerah", 255);
@@ -119,39 +121,50 @@ async fn main() -> Result<(), reqwest::Error> {
     };
 
     let jadwal = jadwal::load_jadwal(daerah, date).await;
+    let (prevs, nexts) = jadwal::get_prev_next(&jadwal.items, date);
+    let prev = prevs.last();
+    let (prev_name, prev_text) = match prev {
+        Some(val) => (
+            val.1,
+            format!("{} {} <- {} minutes ago", val.1, val.2, -val.0),
+        ),
+        None => ("", "".to_string()),
+    };
+
+    let next = nexts.first();
+    let (next_name, next_text) = match next {
+        Some(val) => (
+            val.1,
+            format!("{} {} -> in {} minutes", val.1, val.2, val.0),
+        ),
+        None => ("", "".to_string()),
+    };
+
     let all_day = matches.get_one::<bool>("all-day").unwrap_or(&false);
     if *all_day {
         println!(
             "Jadwal Sholat {} {} at {}",
             daerah.kabupaten, daerah.provinsi, date
         );
-        jadwal
-            .items
-            .iter()
-            .for_each(|item| println!("{} {}", item.name, item.date));
+        for item in prevs {
+            if prev_name == item.1 {
+                println!("{}", prev_text);
+            } else {
+                println!("{} {}", item.1, item.2);
+            };
+        }
+
+        for item in nexts {
+            if next_name == item.1 {
+                println!("{}", next_text);
+            } else {
+                println!("{} {}", item.1, item.2);
+            };
+        }
         return Ok(());
     }
 
-    // let sort_jadwal = jadwal::sort_jadwal(&jadwal.items, date);
-    // println!("jadwal: {:#?}", sort_jadwal);
-    let (prevs, nexts) = jadwal::get_prev_next(jadwal.items, date);
-
-    match prevs.last() {
-        Some(val) =>
-            print!(
-                "{} {} ({} minutes ago), ",
-                val.1, val.2, -val.0
-            ),
-        None => {},
-    };
-    match nexts.first() {
-        Some(val) =>
-            println!(
-                "{} {} (in {} minutes)",
-                val.1, val.2, val.0
-            ),
-        None => {},
-    };
+    println!("{} {}", prev_text, next_text);
 
     Ok(())
 }
